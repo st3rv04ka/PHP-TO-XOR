@@ -6,7 +6,8 @@ import re
 import itertools
 
 parser = argparse.ArgumentParser(description='Generate php code')
-parser.add_argument('function', help='The function name to translate into compatible PHP code')
+parser.add_argument('string', help='String to translate into compatible PHP code')
+parser.add_argument('type', type=int, help='Type switch')
 
 DEBUG = True
 
@@ -33,7 +34,7 @@ def find_xor_chars(target_bits_str, source_bits_str, max_chars, allowed_chars):
 
     allowed_codes = [ord(c) for c in allowed_chars]
 
-    for num_chars in range(1, max_chars + 1):
+    for num_chars in range(2, max_chars + 1):
         for chars_tuple in itertools.product(allowed_codes, repeat=num_chars):
             chars_xor = 0
             for code in chars_tuple:
@@ -51,13 +52,22 @@ def merge_arrays(result, new_array):
             result.append(new_array[i])
     return result
 
-def generate_numbers(function_name):
-    chars_lists = []
+def generate_numbers(string, switch):
+    result = ""
     allowed_chars = [str(d) for d in range(10)] + ['-']
+    digits = [str(d) for d in range(10)]
 
-    for i in range(len(function_name)):
+    for i in range(len(string)):
+        if string[i] in digits:
+            print(f"Digit flipping: acos(2) ^ ({string[i]} . 0+acos(2)) ^ acos(2)")
+            if len(result) < 1:
+                result = result + f"(acos(2) ^ ({string[i]} . 0+acos(2)) ^ acos(2))"
+            else:
+                result = result + " . " + f"(acos(2) ^ ({string[i]} . 0+acos(2)) ^ acos(2))"
+            continue
+            
         nan_char = 'N'.encode('ascii')[0]
-        fun_char = function_name.encode('ascii')[i]
+        fun_char = string.encode('ascii')[i]
         target_bits = nan_char ^ fun_char
         debug_print("Target: {0:08b}".format(target_bits))
 
@@ -75,39 +85,51 @@ def generate_numbers(function_name):
             print("Could not find XOR characters for symbol:", chr(fun_char))
             exit()
         debug_print("From [{0}] -> [{1}]: {2}".format(chr(nan_char), chr(fun_char), chars))
+        print(chars)
+        if len(result) < 1:
+            result = result + generate_string(switch, chars)
+        else:
+            result = result + " . " + generate_string(switch, chars)
 
-        chars_lists.append(chars)
+    return result
 
-    return chars_lists
-
-def generate_string(function_name, chars_lists):
-    xor_expressions = []
-    for chars in chars_lists:
-        number_parts = []
-        for char in chars:
-            if char in ['-', '+']:
+def generate_string(switch, chars_lists):
+    number_parts = []
+    for char in chars_lists:
+        if switch == 1:
+            if char in ['-']:
+                number_parts.append(f"{char}1 . (0>1)")
+            else:
+                number_parts.append(f"{char} . (0>1)")
+        elif switch == 2:
+            if char in ['-']:
+                number_parts.append(f"{char}1 . (acos(2) == acos(2))")
+            else:
+                number_parts.append(f"{char} . (acos(2) == acos(2))")
+        elif switch == 3:
+            if char in ['-']:
+                number_parts.append(f"{char}1 . !1")
+            else:
+                number_parts.append(f"{char} . !1")
+        else:
+            if char in ['-']:
                 number_parts.append(f"{char}1 . NULL")
             else:
                 number_parts.append(f"{char} . NULL")
-        xor_expression = ' ^ '.join(['acos(2) . 0+acos(2)'] + number_parts)
-        xor_expression = f"({xor_expression})"
-        xor_expressions.append(xor_expression)
-    final_string = ' . '.join(xor_expressions)
-    return final_string
+    xor_expression = ' ^ '.join(['acos(2) . 0+acos(2)'] + number_parts)
+    xor_expression = f"({xor_expression})"
+    return xor_expression
 
 def main():
-    function_name = args.function
-    function_name = function_name.strip()
-    validation_regex = re.compile("^[_A-Za-z]*$")
-    if not validation_regex.match(function_name):
-        print("Function contains unsupported characters. Only uppercase letters and '_' are currently supported")
+    string = args.string.strip()
+    switchtype = args.type
+    validation_regex = re.compile("^[_A-Za-z0-9]*$")
+    if not validation_regex.match(string):
+        print("String contains unsupported characters.")
         return
 
-    res = generate_numbers(function_name)
-
-    res_string = generate_string(function_name, res)
-
-    print(res_string)
+    res = generate_numbers(string, switchtype)
+    print(res)
 
 if __name__ == "__main__":
     args = parser.parse_args()
